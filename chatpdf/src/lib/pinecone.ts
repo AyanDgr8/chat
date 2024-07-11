@@ -9,7 +9,7 @@ import {
   Document,
   RecursiveCharacterTextSplitter,
 } from "@pinecone-database/doc-splitter";
-// import { getEmbeddings } from "./embeddings";
+import { getEmbeddings } from "./embeddings";
 import { convertToAscii } from "./utils";
 
 export const getPineconeClient = () => {
@@ -27,10 +27,10 @@ type PDFPage = {
 
 export async function loadS3IntoPinecone(fileKey: string) {
   // 1. obtain the pdf -> downlaod and read from pdf
-  console.log("downloading s3 into file system");
+  console.log("downloading firebase into file system");
   const file_name = await downloadFromFirebase(fileKey);
   if (!file_name) {
-    throw new Error("could not download from s3");
+    throw new Error("could not download from firebase");
   }
   console.log("loading pdf into memory" + file_name);
   const loader = new PDFLoader(file_name);

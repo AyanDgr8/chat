@@ -1,11 +1,10 @@
 // src/lib/firebase.ts
 
-
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInWithCustomToken } from "firebase/auth";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 // Firebase configuration
@@ -60,28 +59,15 @@ export async function uploadToFirebase(file: File, metadata: any, signInWithCler
   });
 }
 
-/**
- * Download a file from Firebase Storage
- * @param file_key - The key of the file to download
- * @returns A URL to the downloaded file
- */
 export async function downloadFromFirebase(file_key: string): Promise<string> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const storageRef = ref(storage, file_key);
-      const url = await getDownloadURL(storageRef);
-      resolve(url);
-    } catch (error) {
-      reject(error);
-    }
-  });
+  try {
+    const storageRef = ref(storage, file_key);
+    return await getDownloadURL(storageRef);
+  } catch (error) {
+    throw error;
+  }
 }
 
-/**
- * Get a URL to a file stored in Firebase Storage
- * @param file_key - The key of the file
- * @returns The URL to the file
- */
 export function getFirebaseUrl(file_key: string): string {
   return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(file_key)}?alt=media`;
 }
