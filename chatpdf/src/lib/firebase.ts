@@ -34,28 +34,70 @@ export function useSignInWithClerk() {
   return signInWithClerk;
 }
 
-export async function uploadToFirebase(file: File, metadata: any, signInWithClerk: () => Promise<void>): Promise<{ file_key: string; file_name: string }> {
-  await signInWithClerk(); // Ensure Firebase is authenticated
-  return new Promise((resolve, reject) => {
+export async function uploadFileToFirebase(
+  file: File,
+  metadata: any,
+  signInWithClerk?: () => Promise<void>
+): Promise<{ file_key: string; file_name: string }> {
+  return new Promise(async (resolve, reject) => {
+    if (signInWithClerk) {
+      try {
+        await signInWithClerk(); // Call this only if it's provided
+      } catch (error) {
+        return reject(error); // Handle error if sign-in fails
+      }
+    }
+
     const file_key = `uploads/${Date.now().toString()}-${file.name.replace(/ /g, "-")}`;
     const storageRef = ref(storage, file_key);
 
-    uploadBytesResumable(storageRef, file, metadata)
-      .then((snapshot) => {
-        console.log('Uploaded', snapshot.totalBytes, 'bytes.');
-        console.log('File metadata:', snapshot.metadata);
-        getDownloadURL(snapshot.ref).then((url) => {
-          console.log('File available at', url);
+    // Create the upload task
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+    // Listen for state changes, errors, and completion of the upload
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        // Get task progress
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+
+        switch (snapshot.state) {
+          case 'paused':
+            console.log('Upload is paused');
+            break;
+          case 'running':
+            console.log('Upload is running');
+            break;
+        }
+      },
+      (error) => {
+        // Handle unsuccessful uploads
+        console.error('Upload failed', error);
+        switch (error.code) {
+          case 'storage/unauthorized':
+            console.error('User doesn’t have permission to access the object');
+            break;
+          case 'storage/canceled':
+            console.error('User canceled the upload');
+            break;
+          case 'storage/unknown':
+            console.error('Unknown error occurred, inspect error.serverResponse');
+            break;
+        }
+        reject(error);
+      },
+      () => {
+        // Upload completed successfully, now we can get the download URL
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          console.log('File available at', downloadURL);
           resolve({
             file_key,
             file_name: file.name,
           });
         });
-      })
-      .catch((error) => {
-        console.error('Upload failed', error);
-        reject(error);
-      });
+      }
+    );
   });
 }
 

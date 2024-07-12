@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { getAuth, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInWithCustomToken, onAuthStateChanged, User } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 
 const firebaseConfig = {
@@ -21,11 +21,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-const AuthContext = createContext({});
+// Define the context type
+interface AuthContextType {
+  firebaseUser: User | null;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { getToken } = useAuth();
-  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null); // Specify the type
 
   useEffect(() => {
     const signInWithClerk = async () => {
@@ -53,4 +58,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-export const useFirebaseAuth = () => useContext(AuthContext);
+export const useFirebaseAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useFirebaseAuth must be used within an AuthProvider");
+  }
+  return context;
+};
