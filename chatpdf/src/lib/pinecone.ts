@@ -1,6 +1,5 @@
 // src/lib/pinecone.ts
 
-
 import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
 import { downloadFromFirebase } from "./firebase";
 import { PDFLoader } from "langchain/document_loaders/fs/pdf";
@@ -26,31 +25,32 @@ type PDFPage = {
 };
 
 export async function loadS3IntoPinecone(fileKey: string) {
-  // 1. obtain the pdf -> downlaod and read from pdf
-  console.log("downloading firebase into file system");
-  const file_name = await downloadFromFirebase(fileKey);
-  if (!file_name) {
-    throw new Error("could not download from firebase");
+  // 1. Download the PDF from Firebase
+  console.log("Downloading PDF from Firebase...");
+  const fileName = await downloadFromFirebase(fileKey);
+  if (!fileName) {
+    throw new Error("Could not download from Firebase.");
   }
-  console.log("loading pdf into memory" + file_name);
-  const loader = new PDFLoader(file_name);
+  console.log("Loaded PDF into memory:", fileName);
+  
+  const loader = new PDFLoader(fileName);
   const pages = (await loader.load()) as PDFPage[];
 
-  // 2. split and segment the pdf
+  // 2. Split and segment the PDF
   const documents = await Promise.all(pages.map(prepareDocument));
 
-  // 3. vectorise and embed individual documents
+  // 3. Vectorize and embed individual documents
   const vectors = await Promise.all(documents.flat().map(embedDocument));
 
-  // 4. upload to pinecone
+  // 4. Upload to Pinecone
   const client = await getPineconeClient();
   const pineconeIndex = await client.index("chatpdf");
   const namespace = pineconeIndex.namespace(convertToAscii(fileKey));
 
-  console.log("inserting vectors into pinecone");
+  console.log("Inserting vectors into Pinecone...");
   await namespace.upsert(vectors);
 
-  return documents[0];
+  return documents[0]; // Returning the first document for reference
 }
 
 async function embedDocument(doc: Document) {
@@ -64,10 +64,11 @@ async function embedDocument(doc: Document) {
       metadata: {
         text: doc.metadata.text,
         pageNumber: doc.metadata.pageNumber,
+        // Add any additional metadata fields as necessary
       },
     } as PineconeRecord;
   } catch (error) {
-    console.log("error embedding document", error);
+    console.error("Error embedding document:", error);
     throw error;
   }
 }
@@ -79,8 +80,9 @@ export const truncateStringByBytes = (str: string, bytes: number) => {
 
 async function prepareDocument(page: PDFPage) {
   let { pageContent, metadata } = page;
-  pageContent = pageContent.replace(/\n/g, "");
-  // split the docs
+  pageContent = pageContent.replace(/\n/g, ""); // Clean up page content
+
+  // Split the documents
   const splitter = new RecursiveCharacterTextSplitter();
   const docs = await splitter.splitDocuments([
     new Document({
@@ -88,8 +90,10 @@ async function prepareDocument(page: PDFPage) {
       metadata: {
         pageNumber: metadata.loc.pageNumber,
         text: truncateStringByBytes(pageContent, 36000),
+        // You can add more metadata fields if needed
       },
     }),
   ]);
+
   return docs;
 }

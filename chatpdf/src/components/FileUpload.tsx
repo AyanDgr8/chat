@@ -1,3 +1,5 @@
+// src/components/FileUpload.tsx
+
 "use client";
 
 import { uploadFileToFirebase, useSignInWithClerk } from "@/lib/firebase";
@@ -28,7 +30,7 @@ const FileUpload = () => {
     },
     onSuccess: (data) => {
       toast.success("Chat created!");
-      router.push(`/chat/${data.chat_id}`); // Correctly access chat_id
+      router.push(`/chat/${data.chat_id}`); // Navigate to chat
     },
     onError: (err) => {
       toast.error("Error creating chat");
@@ -64,6 +66,7 @@ const FileUpload = () => {
         mutate({ file_key: data.file_key, file_name: data.file_name });
       } catch (error) {
         console.log(error);
+        toast.error("Error uploading file");
       } finally {
         setUploading(false);
       }

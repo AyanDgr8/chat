@@ -1,13 +1,14 @@
 // src/app/api/create-chat/route.ts
 
+
 import { db } from "@/lib/db";
 import { chats } from "@/lib/db/schema";
 import { loadS3IntoPinecone } from "@/lib/pinecone";
-import { getFirebaseUrl, uploadFileToFirebase } from "@/lib/firebase"; // Correct import
+import { getFirebaseUrl, uploadFileToFirebase } from "@/lib/firebase";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-export async function POST(req: Request, res: Response) {
+export async function POST(req: Request) {
   try {
     const { userId } = await auth(); // Get userId from Clerk auth
     if (!userId) {
@@ -55,6 +56,7 @@ export async function POST(req: Request, res: Response) {
           pdfName: firebaseFileName,
           pdfUrl: getFirebaseUrl(firebaseFileKey),
           userId,
+          // Add any other relevant metadata here if needed
         })
         .returning({
           insertedId: chats.id,

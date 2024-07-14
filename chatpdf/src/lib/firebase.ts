@@ -4,6 +4,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import { getAuth, signInWithCustomToken } from "firebase/auth";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
@@ -22,6 +23,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 export function useSignInWithClerk() {
   const { getToken } = useAuth();
@@ -47,10 +49,14 @@ export async function uploadFileToFirebase(
         return reject(error); // Handle error if sign-in fails
       }
     }
+    const userId = auth.currentUser?.uid; // Make sure to check if user is authenticated
+    console.log("User ID:", userId);
 
-    const file_key = `uploads/${Date.now().toString()}-${file.name.replace(/ /g, "-")}`;
+    const file_key = `uploads/${userId}/${Date.now().toString()}-${file.name.replace(/ /g, "-")}`;
     const storageRef = ref(storage, file_key);
-
+    
+    
+    
     // Create the upload task
     const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
@@ -87,19 +93,48 @@ export async function uploadFileToFirebase(
         }
         reject(error);
       },
-      () => {
+
+      async () => {
         // Upload completed successfully, now we can get the download URL
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          console.log('File available at', downloadURL);
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        console.log('File available at', downloadURL);
+
+        // Save metadata to Firestore
+        const metadataDoc = {
+          file_key,
+          file_name: file.name,
+          ...metadata,
+          downloadURL,
+          uploadTime: new Date(),
+        };
+
+        // Extract the document ID from the file_key
+        const docId = file_key.split('/').pop() || 'default_doc_id'; // Ensure default ID
+          
+        try {
+          // Correctly create the document reference
+          const uploadsCollectionRef = doc(db, "uploads", docId);
+          await setDoc(uploadsCollectionRef, metadataDoc);
+          console.log('Metadata saved to Firestore');
           resolve({
             file_key,
             file_name: file.name,
           });
-        });
+        } catch (error) {
+          console.error('Error saving metadata to Firestore:', error);
+          reject(error);
+        }
       }
     );
   });
 }
+
+export function getFirebaseUrl(file_key: string): string {
+  return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(file_key)}?alt=media`;
+}
+
+// ****************
+
 
 export async function downloadFromFirebase(file_key: string): Promise<string> {
   try {
@@ -110,6 +145,17 @@ export async function downloadFromFirebase(file_key: string): Promise<string> {
   }
 }
 
-export function getFirebaseUrl(file_key: string): string {
-  return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(file_key)}?alt=media`;
+export async function getMetadataFromFirestore(file_key: string): Promise<any> {
+  try {
+    const docRef = doc(db, "uploads", file_key);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    } else {
+      throw new Error("No such document!");
+    }
+  } catch (error) {
+    throw error;
+  }
 }
+
