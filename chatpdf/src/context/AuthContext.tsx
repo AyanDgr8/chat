@@ -14,7 +14,7 @@ const firebaseConfig = {
   storageBucket: "chatpdf-a0b74.appspot.com",
   messagingSenderId: "658318777577",
   appId: "1:658318777577:web:d068895a5c87dff99e2478",
-  measurementId: "G-41R6KRYQ0Q"
+  measurementId: "G-41R6KRYQ0Q",
 };
 
 // Initialize Firebase
@@ -26,17 +26,23 @@ interface AuthContextType {
   firebaseUser: User | null;
 }
 
+
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { getToken } = useAuth();
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null); // Specify the type
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
 
   useEffect(() => {
     const signInWithClerk = async () => {
       try {
         const token = await getToken({ template: "integration_firebase" });
-        await signInWithCustomToken(auth, token || "");
+        if (token) {
+          await signInWithCustomToken(auth, token);
+        } else {
+          console.warn("No token received from Clerk.");
+        }
       } catch (error) {
         console.error("Error signing in with Clerk:", error);
       }
@@ -46,6 +52,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
+    }, (error) => {
+      console.error("Error in Firebase auth state change:", error);
     });
 
     return () => unsubscribe();

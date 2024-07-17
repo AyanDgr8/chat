@@ -1,69 +1,66 @@
 // src/components/FileUpload.tsx
+// src/components/FileUpload.tsx
 
 "use client";
 
 import { uploadFileToFirebase, useSignInWithClerk } from "@/lib/firebase";
-import { useMutation } from "@tanstack/react-query";
 import { Inbox, Loader2 } from "lucide-react";
 import React, { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs"; // Import useAuth from Clerk
+// import { auth } from "@clerk/nextjs/server";
 
 const FileUpload = () => {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
+  const isLoading = uploading;
+  
+  const { userId } = useAuth(); // Get the authenticated user
   const signInWithClerk = useSignInWithClerk();
-
-  const { mutate, status } = useMutation<
-    { chat_id: string }, // Expected response type
-    Error, 
-    { file_key: string; file_name: string }
-  >({
-    mutationFn: async ({ file_key, file_name }) => {
-      const response = await axios.post("/api/create-chat", {
-        file_key,
-        file_name,
-      });
-      return response.data; // Should return { chat_id }
-    },
-    onSuccess: (data) => {
-      toast.success("Chat created!");
-      router.push(`/chat/${data.chat_id}`); // Navigate to chat
-    },
-    onError: (err) => {
-      toast.error("Error creating chat");
-      console.error(err);
-    },
-  });
 
   const { getRootProps, getInputProps } = useDropzone({
     accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
     onDrop: async (acceptedFiles) => {
       const file = acceptedFiles[0];
+      console.log("ayan", file);
       if (file.size > 10 * 1024 * 1024) {
         toast.error("File too large");
         return;
       }
-
+  
       const metadata = {
         contentType: file.type,
         customMetadata: {
-          uploadedBy: "user_id", // Replace with actual user ID
+          uploadedBy: userId || "unknown", // Dynamically get the user ID
         },
       };
-
+  
       try {
         setUploading(true);
-        await signInWithClerk();
+        await signInWithClerk(); // Ensure user is signed in
         const data = await uploadFileToFirebase(file, metadata, signInWithClerk);
         if (!data?.file_key || !data?.file_name) {
           toast.error("Something went wrong");
           return;
         }
-        mutate({ file_key: data.file_key, file_name: data.file_name });
+  
+        // Directly initiate the API call without mutation
+        const response = await axios.post("/api/create-chat", {
+          file_key: data.file_key,
+          file_name: data.file_name,
+          userId: userId,
+        });
+  
+        if (response.data.chat_id) {
+          toast.success("Chat created!");
+          router.push(`/chat/${response.data.chat_id}`); // Navigate to chat
+        } else {
+          toast.error("Error creating chat");
+        }
       } catch (error) {
         console.log(error);
         toast.error("Error uploading file");
@@ -72,9 +69,7 @@ const FileUpload = () => {
       }
     },
   });
-
-  const isLoading = uploading || status === 'pending';
-
+  
   return (
     <div className="p-2 bg-white rounded-xl">
       <div
